@@ -1,0 +1,9 @@
+### JetBrains template
+.idea/
+
+### macOS template
+*.DS_Store
+Icon
+
+### Python template
+__pycache__/
