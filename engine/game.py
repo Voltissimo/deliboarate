@@ -286,24 +286,62 @@ class Move:
         raise NotImplementedError
 
 
+class NormalMove(Move):
+    def execute(self) -> 'Board':
+        pass
+
+    def __str__(self) -> str:
+        return str(self.moved_piece).upper() + self.destination_coordinate  # TODO specify the file when ok for 2 moves?
+
+
 class CaptureMove(Move):
-    pass
+    def execute(self) -> 'Board':
+        pass
+
+    def __str__(self):
+        return str(self.moved_piece).upper() + 'x' + self.destination_coordinate  # TODO same as above
 
 
 class PawnMove(Move):
-    pass
+    def execute(self) -> 'Board':
+        pass
+
+    def __str__(self):
+        return self.destination_coordinate
 
 
 class PawnJumpMove(Move):
-    pass
+    def execute(self) -> 'Board':
+        pass  # set en passant pawn here
+
+    def __str__(self):
+        return self.destination_coordinate
 
 
 class PawnCaptureMove(CaptureMove):
-    pass
+    def __str__(self):
+        return self.moved_piece.piece_position[0] + 'x' + self.destination_coordinate
 
 
 class CastleMove(Move):
-    pass
+    def __init__(self, board: 'Board', moved_piece: 'Piece', destination_coordinate: str):
+        super().__init__(board, moved_piece, destination_coordinate)
+
+    def execute(self) -> 'Board':
+        pass
+
+    def __str__(self):
+        raise NotImplementedError
+
+
+class KingSideCastleMove(CastleMove):
+    def __str__(self):
+        return "O-O"
+
+
+class QueenSideCastleMove(CastleMove):
+    def __str__(self):
+        return "O-O-O"
 
 
 if __name__ == '__main__':
