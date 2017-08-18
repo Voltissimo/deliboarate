@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Type, Union, List
+from typing import Union, List
 
 
 #########
@@ -30,7 +30,8 @@ def algebraic_notation_to_index(algebraic_notation: str) -> int:
 
 
 def algebraic_notation_to_vector(algebraic_notation: str) -> np.ndarray:
-    pass
+    file, rank = algebraic_notation
+    return np.array([RANKS.index(rank), FILES.index(file)])
 
 
 def get_pawn_advance_direction(color: Union['WHITE', 'BLACK']) -> int:
@@ -55,15 +56,15 @@ class Board:
                  active_color: Union['WHITE', 'BLACK'],
                  half_move_clock: int,
                  full_move_number: int,
-                 en_passant_pawn=None):
+                 en_passant_position=None):
+        """Create an essentially empty board"""
         self.board: List[Union[None, 'Piece']] = [None] * 64
         self.active_color: str = active_color
         self.half_move_clock = half_move_clock
         self.full_move_number = full_move_number
-        self.en_passant_pawn: Union[None, 'Pawn'] = en_passant_pawn
-        self.white_pieces, self.black_pieces, self.white_king, self.black_king = [None] * 4
-        self.update()
-        # TODO refactor this and move into Player class
+        self.en_passant_position: Union[None, str] = en_passant_position
+        self.white_player, self.black_player, self.current_player = [None] * 3
+        self.load_players()
 
     def __getitem__(self, key: str) -> Union[None, 'Piece']:
         return self.board[algebraic_notation_to_index(key)]
@@ -76,6 +77,15 @@ class Board:
         :return: the current board in text format
 
         >>> print(Board.create_standard_board())
+        r n b q k b n r
+        p p p p p p p p
+        - - - - - - - -
+        - - - - - - - -
+        - - - - - - - -
+        - - - - - - - -
+        P P P P P P P P
+        R N B Q K B N R
+        >>> print(Board.from_FEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"))
         r n b q k b n r
         p p p p p p p p
         - - - - - - - -
@@ -98,12 +108,43 @@ class Board:
                 board[file + first_rank] = piece_type(board, file + first_rank, piece_color, False)
             for file in FILES:
                 board[file + pawn_rank] = Pawn(board, file + pawn_rank, piece_color, False)
-        board.update()
+        board.load_players()
         return board
 
     @classmethod
     def from_FEN(cls, FEN_record: str) -> 'Board':
-        pass
+        pieces, current_player, castling_availability, en_passant_position, half_move_clock, full_move_number = \
+            FEN_record.split(' ')
+        board = Board(
+            WHITE if current_player == 'w' else BLACK,
+            int(half_move_clock),
+            int(full_move_number),
+            en_passant_position=en_passant_position
+        )
+        for rank_count, rank in enumerate(pieces.split('/')):
+            file_count = 0
+            for file in rank:
+                if str.isdigit(file):
+                    file_count += int(file)
+                else:
+                    piece_type: str = file
+                    piece_color = WHITE if file.upper() == file else BLACK
+                    if piece_type.upper() == 'R' or piece_type.upper() == 'K':
+                        # TODO handle the KQkq
+                        board[FILES[file_count] + RANKS[7 - rank_count]] = {
+                            'R': Rook,
+                            'K': King,
+                        }[file.upper()](board, FILES[file_count] + RANKS[rank_count], piece_color, False)
+                    else:
+                        board[FILES[file_count] + RANKS[7 - rank_count]] = {
+                            'B': Bishop,
+                            'N': Knight,
+                            'P': Pawn,
+                            'Q': Queen,
+                        }[file.upper()](board, FILES[file_count] + RANKS[rank_count], piece_color, False)
+                        # is_moved does not matter (that much) for pieces other than king and rook
+                    file_count += 1
+        return board
 
     def to_FEN(self) -> str:
         """
@@ -137,41 +178,22 @@ class Board:
         # castling availability
         FEN_components.append('KQkq')  # TODO this
         # en passant pawn
-        FEN_components.append(
-            str(algebraic_notation_to_index(self.en_passant_pawn.piece_position)
-                - 8 * get_pawn_advance_direction(self.active_color)
-                )
-            if self.en_passant_pawn is not None
-            else '-'
-        )
+        FEN_components.append(self.en_passant_position if self.en_passant_position is not None else '-')
         # half move clock
         FEN_components.append(str(self.half_move_clock))
         # full move number
         FEN_components.append(str(self.full_move_number))
         return ' '.join(FEN_components)
 
-    def update(self):
-        """
-        find and set all active white and black pieces; set the players' kings
-        """
-        white_pieces, black_pieces = [], []
-        for tile in self.board:
-            if tile is not None:
-                # tile is a piece (white or black)
-                white_pieces.append(tile) if tile.color == WHITE else black_pieces.append(tile)
-                if isinstance(tile, King):
-                    if tile.color == WHITE:
-                        self.white_king = tile
-                    else:
-                        self.black_king = tile
-        self.white_pieces = white_pieces
-        self.black_pieces = black_pieces
+    def load_players(self):
+        self.white_player = Player(self, WHITE)
+        self.black_player = Player(self, BLACK)
+        self.current_player = self.white_player if self.active_color == WHITE else self.black_player
 
 
 ##########
 # Pieces #
 ##########
-"""Parent class"""
 
 
 class Piece:
@@ -195,8 +217,6 @@ class Piece:
 
     def calculate_piece_legal_moves(self) -> List['Move']:
         raise NotImplementedError
-
-"""Children class"""
 
 
 class King(Piece):
@@ -250,8 +270,41 @@ class Pawn(Piece):
 #########
 # Moves #
 #########
+
+
 class Move:
     def __init__(self, board: 'Board', moved_piece: 'Piece', destination_coordinate: str):
         self.board = board
         self.moved_piece = moved_piece
+        self.original_coordinate = moved_piece.piece_position
         self.destination_coordinate = destination_coordinate
+
+    def __str__(self):
+        raise NotImplementedError
+
+    def execute(self) -> 'Board':
+        raise NotImplementedError
+
+
+class CaptureMove(Move):
+    pass
+
+
+class PawnMove(Move):
+    pass
+
+
+class PawnJumpMove(Move):
+    pass
+
+
+class PawnCaptureMove(CaptureMove):
+    pass
+
+
+class CastleMove(Move):
+    pass
+
+
+if __name__ == '__main__':
+    print(Board.from_FEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").to_FEN())
