@@ -123,7 +123,7 @@ class Board:
             for file, piece_type in zip(FILES, (Rook, Knight, Bishop, Queen, King, Bishop, Knight, Rook)):
                 board[file + first_rank] = piece_type(board, file + first_rank, piece_color, False)
             for file in FILES:
-                board[file + pawn_rank] = Pawn(board, file + pawn_rank, piece_color, False)
+                board[file + pawn_rank] = Pawn(board, file + pawn_rank, piece_color)
         board.load_players()
         return board
 
@@ -230,11 +230,10 @@ class Board:
 class Piece:
     PIECE_VALUE = 0
 
-    def __init__(self, board: 'Board', piece_position: str, color: Union['WHITE', 'BLACK'], is_moved: bool):
+    def __init__(self, board: 'Board', piece_position: str, color: Union['WHITE', 'BLACK']):
         self.board = board
         self.piece_position = piece_position
         self.color = color
-        self.moved = is_moved
 
     @classmethod
     def move(cls, move: 'Move'):
@@ -251,6 +250,10 @@ class Piece:
 
 
 class King(Piece):
+    def __init__(self, board: 'Board', piece_position: str, color: Union['WHITE', 'BLACK'], is_moved: bool):
+        super().__init__(board, piece_position, color)
+        self.is_moved = is_moved
+
     def __repr__(self):
         return 'K' if self.color == WHITE else 'k'
 
@@ -267,6 +270,10 @@ class Queen(Piece):
 
 
 class Rook(Piece):
+    def __init__(self, board: 'Board', piece_position: str, color: Union['WHITE', 'BLACK'], is_moved: bool):
+        super().__init__(board, piece_position, color)
+        self.is_moved = is_moved
+
     def __repr__(self):
         return 'R' if self.color == WHITE else 'r'
 
@@ -356,6 +363,18 @@ class PawnJumpMove(Move):
 class PawnCaptureMove(CaptureMove):
     def __str__(self):
         return self.moved_piece.piece_position[0] + 'x' + self.destination_coordinate
+
+
+class PawnPromotionMove(Move):
+    def execute(self) -> 'Board':
+        pass
+
+    def __str__(self):
+        return str(self.decorated_move)
+
+    def __init__(self, decorated_move: Union['PawnMove', 'PawnCaptureMove']):
+        super().__init__(decorated_move.board, decorated_move.moved_piece, decorated_move.destination_coordinate)
+        self.decorated_move = decorated_move
 
 
 class CastleMove(Move):
