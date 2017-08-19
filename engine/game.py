@@ -34,6 +34,22 @@ def algebraic_notation_to_vector(algebraic_notation: str) -> np.ndarray:
     return np.array([RANKS.index(rank), FILES.index(file)])
 
 
+def vector_to_algebraic_notation(vector: np.ndarray) -> str:
+    """
+    :param vector: [i, j] with i = rows and j = cols
+    :return: the corresponding algebraic notation
+
+    >>> vector_to_algebraic_notation(np.array([0, 0]))
+    'a8'
+    >>> vector_to_algebraic_notation(np.array([7, 0]))
+    'a1'
+    >>> vector_to_algebraic_notation(np.array([7, 7]))
+    'h1'
+    """
+    rank, file = vector
+    return FILES[file] + RANKS[7 - rank]
+
+
 def get_pawn_advance_direction(color: Union['WHITE', 'BLACK']) -> int:
     return -1 if color == WHITE else 1
 
@@ -47,6 +63,12 @@ class Player:
         self.color: str = color
         self.king = None
 
+    def is_king_side_castle_available(self) -> bool:
+        pass
+
+    def is_queen_side_castle_available(self) -> bool:
+        pass
+
 
 #########
 # Board #
@@ -57,7 +79,10 @@ class Board:
                  half_move_clock: int,
                  full_move_number: int,
                  en_passant_position=None):
-        """Create an essentially empty board"""
+        """
+        Create an essentially empty board
+        Notice: load_players() must be called again if any change is made to the board
+        """
         self.board: List[Union[None, 'Piece']] = [None] * 64
         self.active_color: str = active_color
         self.half_move_clock = half_move_clock
@@ -76,16 +101,7 @@ class Board:
         """
         :return: the current board in text format
 
-        >>> print(Board.create_standard_board())
-        r n b q k b n r
-        p p p p p p p p
-        - - - - - - - -
-        - - - - - - - -
-        - - - - - - - -
-        - - - - - - - -
-        P P P P P P P P
-        R N B Q K B N R
-        >>> print(Board.from_FEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"))
+        >>> Board.create_standard_board()
         r n b q k b n r
         p p p p p p p p
         - - - - - - - -
@@ -113,6 +129,20 @@ class Board:
 
     @classmethod
     def from_FEN(cls, FEN_record: str) -> 'Board':
+        """
+        :param FEN_record:
+        :return: the board created from the FEN record
+
+        >>> Board.from_FEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")
+        r n b q k b n r
+        p p p p p p p p
+        - - - - - - - -
+        - - - - - - - -
+        - - - - - - - -
+        - - - - - - - -
+        P P P P P P P P
+        R N B Q K B N R
+        """
         pieces, current_player, castling_availability, en_passant_position, half_move_clock, full_move_number = \
             FEN_record.split(' ')
         board = Board(
@@ -131,12 +161,12 @@ class Board:
                     piece_color = WHITE if file.upper() == file else BLACK
                     if piece_type.upper() == 'R' or piece_type.upper() == 'K':
                         # TODO handle the KQkq
-                        board[FILES[file_count] + RANKS[7 - rank_count]] = {
+                        board[vector_to_algebraic_notation(np.array([rank_count, file_count]))] = {
                             'R': Rook,
                             'K': King,
                         }[file.upper()](board, FILES[file_count] + RANKS[rank_count], piece_color, False)
                     else:
-                        board[FILES[file_count] + RANKS[7 - rank_count]] = {
+                        board[vector_to_algebraic_notation(np.array([rank_count, file_count]))] = {
                             'B': Bishop,
                             'N': Knight,
                             'P': Pawn,
@@ -144,14 +174,15 @@ class Board:
                         }[file.upper()](board, FILES[file_count] + RANKS[rank_count], piece_color, False)
                         # is_moved does not matter (that much) for pieces other than king and rook
                     file_count += 1
+        board.load_players()
         return board
 
     def to_FEN(self) -> str:
         """
         :return: the Forsyth-Edwards notation of the current board
 
-        >>> print(Board.create_standard_board().to_FEN())
-        rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
+        >>> Board.create_standard_board().to_FEN()
+        'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
         """
         FEN_components = []
         # pieces on chess board
@@ -264,6 +295,10 @@ class Pawn(Piece):
         return 'P' if self.color == WHITE else 'p'
 
     def calculate_piece_legal_moves(self) -> List['Move']:
+        # normal move
+        # pawn jump
+        # pawn capture move
+        # pawn promotion
         pass
 
 
@@ -342,7 +377,3 @@ class KingSideCastleMove(CastleMove):
 class QueenSideCastleMove(CastleMove):
     def __str__(self):
         return "O-O-O"
-
-
-if __name__ == '__main__':
-    print(Board.from_FEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").to_FEN())
