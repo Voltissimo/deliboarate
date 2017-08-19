@@ -74,6 +74,11 @@ class Player:
 # Board #
 #########
 class Board:
+    WHITE_KING_ROOK_POSITION = "h1"
+    BLACK_KING_ROOK_POSITION = "h8"
+    WHITE_QUEEN_ROOK_POSITION = "a1"
+    BLACK_QUEEN_ROOK_POSITION = "a8"
+
     def __init__(self,
                  active_color: Union['WHITE', 'BLACK'],
                  half_move_clock: int,
@@ -121,7 +126,10 @@ class Board:
         for piece_color, first_rank, pawn_rank in zip([WHITE, BLACK], ['1', '8'], ['2', '7']):
             # first rank pieces (rook, knight, bishop, queen, king, bishop, knight, rook)
             for file, piece_type in zip(FILES, (Rook, Knight, Bishop, Queen, King, Bishop, Knight, Rook)):
-                board[file + first_rank] = piece_type(board, file + first_rank, piece_color, False)
+                if piece_type == King or piece_type == Rook:
+                    board[file + first_rank] = piece_type(board, file + first_rank, piece_color, False)
+                else:
+                    board[file + first_rank] = piece_type(board, file + first_rank, piece_color)
             for file in FILES:
                 board[file + pawn_rank] = Pawn(board, file + pawn_rank, piece_color)
         board.load_players()
@@ -143,7 +151,7 @@ class Board:
         P P P P P P P P
         R N B Q K B N R
         """
-        pieces, current_player, castling_availability, en_passant_position, half_move_clock, full_move_number = \
+        pieces, current_player, castling_availability_string, en_passant_position, half_move_clock, full_move_number = \
             FEN_record.split(' ')
         board = Board(
             WHITE if current_player == 'w' else BLACK,
@@ -151,6 +159,10 @@ class Board:
             int(full_move_number),
             en_passant_position=en_passant_position
         )
+        white_king_side_castle_available: bool = 'K' in castling_availability_string
+        black_king_side_castle_available: bool = 'k' in castling_availability_string
+        white_queen_side_castle_available: bool = 'Q' in castling_availability_string
+        black_queen_side_castle_available: bool = 'q' in castling_availability_string
         for rank_count, rank in enumerate(pieces.split('/')):
             file_count = 0
             for file in rank:
@@ -159,20 +171,33 @@ class Board:
                 else:
                     piece_type: str = file
                     piece_color = WHITE if file.upper() == file else BLACK
-                    if piece_type.upper() == 'R' or piece_type.upper() == 'K':
-                        # TODO handle the KQkq
-                        board[vector_to_algebraic_notation(np.array([rank_count, file_count]))] = {
-                            'R': Rook,
-                            'K': King,
-                        }[file.upper()](board, FILES[file_count] + RANKS[rank_count], piece_color, False)
+                    piece_position = vector_to_algebraic_notation(np.array([rank_count, file_count]))
+                    if piece_type.upper() == 'R':
+                        is_moved = True  # doesn't represent the situation exactly, but is enough for checking castling
+                        if piece_color == WHITE:
+                            if piece_position == cls.WHITE_KING_ROOK_POSITION and white_king_side_castle_available:
+                                is_moved = False
+                            elif piece_position == cls.WHITE_QUEEN_ROOK_POSITION and white_queen_side_castle_available:
+                                is_moved = False
+                        else:  # piece_color == BLACK
+                            if piece_position == cls.BLACK_KING_ROOK_POSITION and black_king_side_castle_available:
+                                is_moved = False
+                            elif piece_position == cls.WHITE_QUEEN_ROOK_POSITION and black_queen_side_castle_available:
+                                is_moved = False
+                        board[piece_position] = Rook(board, piece_position, piece_color, is_moved)
+                    elif piece_type.upper() == 'K':
+                        if piece_color == WHITE:
+                            is_moved = white_king_side_castle_available or white_queen_side_castle_available
+                        else:  # no need to worry about other cases since we're not doing quantum computation ... right?
+                            is_moved = black_king_side_castle_available or black_queen_side_castle_available
+                        board[piece_position] = King(board, piece_position, piece_color, is_moved)
                     else:
                         board[vector_to_algebraic_notation(np.array([rank_count, file_count]))] = {
                             'B': Bishop,
                             'N': Knight,
                             'P': Pawn,
                             'Q': Queen,
-                        }[file.upper()](board, FILES[file_count] + RANKS[rank_count], piece_color, False)
-                        # is_moved does not matter (that much) for pieces other than king and rook
+                        }[file.upper()](board, piece_position, piece_color)
                     file_count += 1
         board.load_players()
         return board
