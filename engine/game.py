@@ -53,6 +53,11 @@ def get_pawn_advance_direction(color: Union['WHITE', 'BLACK']) -> int:
     return -1 if color == WHITE else 1
 
 
+def is_vector_coordinate_valid(vector: np.ndarray) -> bool:
+    rank, file = vector
+    return 0 <= rank < 8 and 0 <= file < 8
+
+
 ##########
 # Player #
 ##########
@@ -294,7 +299,10 @@ class King(Piece):
             for offset_j in range(-1, 2):
                 if not offset_i == offset_j == 0:
                     offset_vector = np.array([offset_i, offset_j])
-                    candidate_destination = vector_to_algebraic_notation(piece_position_vector + offset_vector)
+                    candidate_destination_vector = piece_position_vector + offset_vector
+                    if not is_vector_coordinate_valid(candidate_destination_vector):
+                        continue
+                    candidate_destination = vector_to_algebraic_notation(candidate_destination_vector)
                     if self.board[candidate_destination] is None:  # if the move leaves king in danger is checked after
                         piece_moves.append(NormalMove(self.board, self, candidate_destination))
                     else:
