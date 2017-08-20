@@ -295,23 +295,20 @@ class King(Piece):
     def calculate_piece_moves(self) -> List['Move']:
         piece_position_vector = algebraic_notation_to_vector(self.piece_position)
         piece_moves = []
-        for offset_i in range(-1, 2):  # {-1, 0, 1}
-            for offset_j in range(-1, 2):
-                if not offset_i == offset_j == 0:
-                    offset_vector = np.array([offset_i, offset_j])
-                    candidate_destination_vector = piece_position_vector + offset_vector
-                    if not is_vector_coordinate_valid(candidate_destination_vector):
-                        continue
-                    candidate_destination = vector_to_algebraic_notation(candidate_destination_vector)
-                    if self.board[candidate_destination] is None:  # if the move leaves king in danger is checked after
-                        piece_moves.append(NormalMove(self.board, self, candidate_destination))
-                    else:
-                        candidate_captured_piece = self.board[candidate_destination]
-                        if candidate_captured_piece.color != self.color:
-                            piece_moves.append(
-                                CaptureMove(self.board, self, candidate_destination, candidate_captured_piece)
-                            )
-
+        for offset_vector in [np.array(vector_as_list) for vector_as_list in
+                              ((1, 0), (1, -1), (0, -1), (-1, -1), (-1, 0), (-1, 1), (0, 1), (1, 1))]:
+            candidate_destination_vector = piece_position_vector + offset_vector
+            if not is_vector_coordinate_valid(candidate_destination_vector):
+                continue
+            candidate_destination = vector_to_algebraic_notation(candidate_destination_vector)
+            if self.board[candidate_destination] is None:  # if the move leaves king in danger is checked after
+                piece_moves.append(NormalMove(self.board, self, candidate_destination))
+            else:
+                candidate_captured_piece = self.board[candidate_destination]
+                if candidate_captured_piece.color != self.color:
+                    piece_moves.append(
+                        CaptureMove(self.board, self, candidate_destination, candidate_captured_piece)
+                    )
         return piece_moves
 
 
@@ -344,7 +341,22 @@ class Knight(Piece):
         return 'N' if self.color == WHITE else 'n'
 
     def calculate_piece_moves(self) -> List['Move']:
-        pass
+        piece_moves = []
+        piece_position_vector = algebraic_notation_to_vector(self.piece_position)
+        for move_vector in [np.array(move_vector_as_list) for move_vector_as_list
+                            in ((2, 1), (2, -1), (1, 2), (1, -2), (-1, 2), (-1, -2), (-2, 1), (-2, -1))]:
+            candidate_destination_vector = piece_position_vector + move_vector
+            if is_vector_coordinate_valid(candidate_destination_vector):
+                candidate_destination = vector_to_algebraic_notation(candidate_destination_vector)
+                if self.board[candidate_destination] is None:
+                    piece_moves.append(NormalMove(self.board, self, candidate_destination))
+                else:
+                    candidate_captured_piece: 'Piece' = self.board[candidate_destination]
+                    if candidate_captured_piece.color != self.color:
+                        piece_moves.append(
+                            CaptureMove(self.board, self, candidate_destination, candidate_captured_piece)
+                        )
+        return piece_moves
 
 
 class Pawn(Piece):
