@@ -287,6 +287,24 @@ class Piece:
     def calculate_piece_moves(self) -> List['Move']:
         raise NotImplementedError  # whether or not the king is put into danger after the move is done in Player class
 
+    def calculate_moves_through_unoccupied_squares(self, move_vectors: List[np.ndarray]) -> List['Move']:
+        moves = []
+        position_vector = algebraic_notation_to_vector(self.piece_position)
+        for move_vector in move_vectors:
+            candidate_destination_vector = position_vector
+            candidate_destination_square = vector_to_algebraic_notation(candidate_destination_vector)
+            while self.board[candidate_destination_square] is None:
+                if not is_vector_coordinate_valid(candidate_destination_vector):
+                    break
+                moves.append(Move(self.board, self, candidate_destination_square))
+                candidate_destination_vector += move_vector
+                candidate_destination_square = vector_to_algebraic_notation(candidate_destination_vector)
+            else:
+                candidate_captured_piece: 'Piece' = self.board[candidate_destination_square]
+                if candidate_captured_piece.color != self.color:
+                    moves.append(CaptureMove(self.board, self, candidate_destination_square, candidate_captured_piece))
+        return moves
+
 
 class King(Piece):
     def __repr__(self):
@@ -317,7 +335,10 @@ class Queen(Piece):
         return 'Q' if self.color == WHITE else 'q'
 
     def calculate_piece_moves(self) -> List['Move']:
-        pass
+        return self.calculate_moves_through_unoccupied_squares([
+            np.ndarray(direction) for direction in
+            ((1, 0), (1, -1), (0, -1), (-1, -1), (-1, 0), (-1, 1), (0, 1), (1, 1))
+        ])
 
 
 class Rook(Piece):
@@ -325,7 +346,10 @@ class Rook(Piece):
         return 'R' if self.color == WHITE else 'r'
 
     def calculate_piece_moves(self) -> List['Move']:
-        pass
+        return self.calculate_moves_through_unoccupied_squares([
+            np.ndarray(direction) for direction in
+            ((1, 0), (0, -1), (-1, 0), (0, 1))
+        ])
 
 
 class Bishop(Piece):
@@ -333,7 +357,10 @@ class Bishop(Piece):
         return 'B' if self.color == WHITE else 'b'
 
     def calculate_piece_moves(self) -> List['Move']:
-        pass
+        return self.calculate_moves_through_unoccupied_squares([
+            np.ndarray(direction) for direction in
+            ((1, -1), (-1, -1), (-1, 1), (1, 1))
+        ])
 
 
 class Knight(Piece):
