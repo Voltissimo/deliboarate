@@ -1,7 +1,6 @@
 import numpy as np
 from typing import Union, List
 
-
 #########
 # CONST #
 #########
@@ -61,7 +60,10 @@ class Player:
     def __init__(self, board: 'Board', color: Union['WHITE', 'BLACK']):
         self.board = board
         self.color: str = color
+        self.active_pieces = []
         self.king = None
+        self.king_side_castle_availability = False
+        self.queen_side_castle_available = False
 
     def is_king_side_castle_available(self) -> bool:
         pass
@@ -77,11 +79,6 @@ class Player:
 # Board #
 #########
 class Board:
-    WHITE_KING_ROOK_POSITION = "h1"
-    BLACK_KING_ROOK_POSITION = "h8"
-    WHITE_QUEEN_ROOK_POSITION = "a1"
-    BLACK_QUEEN_ROOK_POSITION = "a8"
-
     def __init__(self,
                  active_color: Union['WHITE', 'BLACK'],
                  half_move_clock: int,
@@ -96,8 +93,9 @@ class Board:
         self.half_move_clock = half_move_clock
         self.full_move_number = full_move_number
         self.en_passant_position: Union[None, str] = en_passant_position
-        self.white_player, self.black_player, self.current_player = [None] * 3
-        self.load_players()
+        # these will be overridden by load_players()
+        self.white_player, self.black_player, self.current_player = Player(self, WHITE), Player(self, BLACK), None
+        self.load_players(False, False, False, False)
 
     def __getitem__(self, key: str) -> Union[None, 'Piece']:
         return self.board[algebraic_notation_to_index(key)]
@@ -130,12 +128,12 @@ class Board:
             # first rank pieces (rook, knight, bishop, queen, king, bishop, knight, rook)
             for file, piece_type in zip(FILES, (Rook, Knight, Bishop, Queen, King, Bishop, Knight, Rook)):
                 if piece_type == King or piece_type == Rook:
-                    board[file + first_rank] = piece_type(board, file + first_rank, piece_color, False)
+                    board[file + first_rank] = piece_type(board, file + first_rank, piece_color)
                 else:
                     board[file + first_rank] = piece_type(board, file + first_rank, piece_color)
             for file in FILES:
                 board[file + pawn_rank] = Pawn(board, file + pawn_rank, piece_color)
-        board.load_players()
+        board.load_players(True, True, True, True)
         return board
 
     @classmethod
@@ -162,10 +160,6 @@ class Board:
             int(full_move_number),
             en_passant_position=en_passant_position
         )
-        white_king_side_castle_available: bool = 'K' in castling_availability_string
-        black_king_side_castle_available: bool = 'k' in castling_availability_string
-        white_queen_side_castle_available: bool = 'Q' in castling_availability_string
-        black_queen_side_castle_available: bool = 'q' in castling_availability_string
         for rank_count, rank in enumerate(pieces.split('/')):
             file_count = 0
             for file in rank:
@@ -175,34 +169,21 @@ class Board:
                     piece_type: str = file
                     piece_color = WHITE if file.upper() == file else BLACK
                     piece_position = vector_to_algebraic_notation(np.array([rank_count, file_count]))
-                    if piece_type.upper() == 'R':
-                        is_moved = True  # doesn't represent the situation exactly, but is enough for checking castling
-                        if piece_color == WHITE:
-                            if piece_position == cls.WHITE_KING_ROOK_POSITION and white_king_side_castle_available:
-                                is_moved = False
-                            elif piece_position == cls.WHITE_QUEEN_ROOK_POSITION and white_queen_side_castle_available:
-                                is_moved = False
-                        else:  # piece_color == BLACK
-                            if piece_position == cls.BLACK_KING_ROOK_POSITION and black_king_side_castle_available:
-                                is_moved = False
-                            elif piece_position == cls.WHITE_QUEEN_ROOK_POSITION and black_queen_side_castle_available:
-                                is_moved = False
-                        board[piece_position] = Rook(board, piece_position, piece_color, is_moved)
-                    elif piece_type.upper() == 'K':
-                        if piece_color == WHITE:
-                            is_moved = white_king_side_castle_available or white_queen_side_castle_available
-                        else:  # no need to worry about other cases since we're not doing quantum computation ... right?
-                            is_moved = black_king_side_castle_available or black_queen_side_castle_available
-                        board[piece_position] = King(board, piece_position, piece_color, is_moved)
-                    else:
-                        board[piece_position] = {
-                            'B': Bishop,
-                            'N': Knight,
-                            'P': Pawn,
-                            'Q': Queen,
-                        }[file.upper()](board, piece_position, piece_color)
+                    board[piece_position] = {
+                        'B': Bishop,
+                        'N': Knight,
+                        'P': Pawn,
+                        'Q': Queen,
+                        'K': King,
+                        'R': Rook
+                    }[piece_type.upper()](board, piece_position, piece_color)
                     file_count += 1
-        board.load_players()
+        board.load_players(
+            'K' in castling_availability_string,
+            'k' in castling_availability_string,
+            'Q' in castling_availability_string,
+            'q' in castling_availability_string
+        )
         return board
 
     def to_FEN(self) -> str:
@@ -235,7 +216,15 @@ class Board:
         # current player color (active color)
         FEN_components.append(self.active_color[0].lower())
         # castling availability
-        FEN_components.append('KQkq')  # TODO this
+        castling_availability = ''
+        for condition, string_to_append in zip(
+                [self.white_player.king_side_castle_availability, self.white_player.queen_side_castle_available,
+                 self.black_player.king_side_castle_availability, self.black_player.queen_side_castle_available],
+                ['K', 'Q', 'k', 'q']
+        ):
+            if condition:
+                castling_availability += string_to_append
+        FEN_components.append(castling_availability if len(castling_availability) > 0 else '-')  # just to be sure
         # en passant pawn
         FEN_components.append(self.en_passant_position if self.en_passant_position is not None else '-')
         # half move clock
@@ -244,10 +233,27 @@ class Board:
         FEN_components.append(str(self.full_move_number))
         return ' '.join(FEN_components)
 
-    def load_players(self):
+    def load_players(self,
+                     white_king_side_castle: bool, white_queen_side_castle: bool,
+                     black_king_side_castle: bool, black_queen_side_castle: bool):
         self.white_player = Player(self, WHITE)
         self.black_player = Player(self, BLACK)
+        self.white_player.king_side_castle_availability = white_king_side_castle
+        self.black_player.king_side_castle_availability = black_king_side_castle
+        self.white_player.queen_side_castle_available = white_queen_side_castle
+        self.black_player.queen_side_castle_available = black_queen_side_castle
         self.current_player = self.white_player if self.active_color == WHITE else self.black_player
+        for tile in self.board:
+            if tile is not None:
+                piece: 'Piece' = tile
+                if piece.color == WHITE:
+                    self.white_player.active_pieces.append(piece)
+                    if type(piece) == King:
+                        self.white_player.king = piece
+                else:
+                    self.black_player.active_pieces.append(piece)
+                    if type(piece) == King:
+                        self.black_player.king = piece
 
 
 ##########
@@ -278,10 +284,6 @@ class Piece:
 
 
 class King(Piece):
-    def __init__(self, board: 'Board', piece_position: str, color: Union['WHITE', 'BLACK'], is_moved: bool):
-        super().__init__(board, piece_position, color)
-        self.is_moved = is_moved
-
     def __repr__(self):
         return 'K' if self.color == WHITE else 'k'
 
@@ -314,10 +316,6 @@ class Queen(Piece):
 
 
 class Rook(Piece):
-    def __init__(self, board: 'Board', piece_position: str, color: Union['WHITE', 'BLACK'], is_moved: bool):
-        super().__init__(board, piece_position, color)
-        self.is_moved = is_moved
-
     def __repr__(self):
         return 'R' if self.color == WHITE else 'r'
 
