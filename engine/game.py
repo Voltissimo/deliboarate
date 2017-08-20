@@ -69,6 +69,9 @@ class Player:
     def is_queen_side_castle_available(self) -> bool:
         pass
 
+    def calculate_legal_moves(self) -> List['Move']:
+        pass
+
 
 #########
 # Board #
@@ -192,7 +195,7 @@ class Board:
                             is_moved = black_king_side_castle_available or black_queen_side_castle_available
                         board[piece_position] = King(board, piece_position, piece_color, is_moved)
                     else:
-                        board[vector_to_algebraic_notation(np.array([rank_count, file_count]))] = {
+                        board[piece_position] = {
                             'B': Bishop,
                             'N': Knight,
                             'P': Pawn,
@@ -270,8 +273,8 @@ class Piece:
     def get_piece_value(self):
         return self.PIECE_VALUE
 
-    def calculate_piece_legal_moves(self) -> List['Move']:
-        raise NotImplementedError
+    def calculate_piece_moves(self) -> List['Move']:
+        raise NotImplementedError  # whether or not the king is put into danger after the move is done in Player class
 
 
 class King(Piece):
@@ -282,15 +285,31 @@ class King(Piece):
     def __repr__(self):
         return 'K' if self.color == WHITE else 'k'
 
-    def calculate_piece_legal_moves(self) -> List['Move']:
-        pass
+    def calculate_piece_moves(self) -> List['Move']:
+        piece_position_vector = algebraic_notation_to_vector(self.piece_position)
+        piece_moves = []
+        for offset_i in range(-1, 2):  # {-1, 0, 1}
+            for offset_j in range(-1, 2):
+                if not offset_i == offset_j == 0:
+                    offset_vector = np.array([offset_i, offset_j])
+                    candidate_destination = vector_to_algebraic_notation(piece_position_vector + offset_vector)
+                    if self.board[candidate_destination] is None:  # if the move leaves king in danger is checked after
+                        piece_moves.append(NormalMove(self.board, self, candidate_destination))
+                    else:
+                        candidate_captured_piece = self.board[candidate_destination]
+                        if candidate_captured_piece.color != self.color:
+                            piece_moves.append(
+                                CaptureMove(self.board, self, candidate_destination, candidate_captured_piece)
+                            )
+
+        return piece_moves
 
 
 class Queen(Piece):
     def __repr__(self):
         return 'Q' if self.color == WHITE else 'q'
 
-    def calculate_piece_legal_moves(self) -> List['Move']:
+    def calculate_piece_moves(self) -> List['Move']:
         pass
 
 
@@ -302,7 +321,7 @@ class Rook(Piece):
     def __repr__(self):
         return 'R' if self.color == WHITE else 'r'
 
-    def calculate_piece_legal_moves(self) -> List['Move']:
+    def calculate_piece_moves(self) -> List['Move']:
         pass
 
 
@@ -310,7 +329,7 @@ class Bishop(Piece):
     def __repr__(self):
         return 'B' if self.color == WHITE else 'b'
 
-    def calculate_piece_legal_moves(self) -> List['Move']:
+    def calculate_piece_moves(self) -> List['Move']:
         pass
 
 
@@ -318,7 +337,7 @@ class Knight(Piece):
     def __repr__(self):
         return 'N' if self.color == WHITE else 'n'
 
-    def calculate_piece_legal_moves(self) -> List['Move']:
+    def calculate_piece_moves(self) -> List['Move']:
         pass
 
 
@@ -326,7 +345,7 @@ class Pawn(Piece):
     def __repr__(self):
         return 'P' if self.color == WHITE else 'p'
 
-    def calculate_piece_legal_moves(self) -> List['Move']:
+    def calculate_piece_moves(self) -> List['Move']:
         # normal move
         # pawn jump
         # pawn capture move
@@ -362,6 +381,10 @@ class NormalMove(Move):
 
 
 class CaptureMove(Move):
+    def __init__(self, board: 'Board', moved_piece: 'Piece', destination_coordinate: str, captured_piece: 'Piece'):
+        super().__init__(board, moved_piece, destination_coordinate)
+        self.captured_piece = captured_piece
+
     def execute(self) -> 'Board':
         pass
 
