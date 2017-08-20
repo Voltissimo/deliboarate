@@ -79,6 +79,9 @@ class Player:
     def calculate_legal_moves(self) -> List['Move']:
         pass
 
+    def get_opponent(self) -> 'Player':
+        return self.board.black_player if self.color == WHITE else self.board.black_player
+
 
 #########
 # Board #
@@ -387,15 +390,57 @@ class Knight(Piece):
 
 
 class Pawn(Piece):
+    def __init__(self, board: 'Board', piece_position: str, color: Union['WHITE', 'BLACK']):
+        super().__init__(board, piece_position, color)
+
     def __repr__(self):
         return 'P' if self.color == WHITE else 'p'
 
+    def is_in_initial_rank(self, position: str) -> bool:
+        return position[1] == ('1' if self.color == WHITE else '8')
+
+    def is_in_promotion_rank(self, position: str) -> bool:
+        return position[1] == ('8' if self.color == WHITE else '1')
+
     def calculate_piece_moves(self) -> List['Move']:
-        # normal move
-        # pawn jump
-        # pawn capture move
-        # pawn promotion
-        pass
+
+        piece_moves = []
+        piece_position_vector = algebraic_notation_to_vector(self.piece_position)
+        for move_vector in [np.array(move_vector_list) for move_vector_list in ((1, 0), (1, 1), (1, -1))]:
+            candidate_destination_vector = piece_position_vector + move_vector * get_pawn_advance_direction(self.color)
+            candidate_destination_square = vector_to_algebraic_notation(candidate_destination_vector)
+            if move_vector == np.array([1, 0]):  # normal move
+                if self.board[candidate_destination_square] is None:
+                    if self.is_in_promotion_rank(candidate_destination_square):  # pawn promotion
+                        piece_moves.append(PawnPromotionMove(PawnMove(self.board, self, candidate_destination_square)))
+                    else:
+                        piece_moves.append(PawnMove(self.board, self, candidate_destination_square))
+                    if self.is_in_initial_rank(self.piece_position):  # pawn jump
+                        pawn_jump_candidate_square = vector_to_algebraic_notation(
+                            candidate_destination_vector
+                            + np.array([1, 0]) * get_pawn_advance_direction(self.color)
+                        )
+                        if self.board[pawn_jump_candidate_square] is None:
+                            piece_moves.append(PawnJumpMove(self.board, self, pawn_jump_candidate_square))
+            else:  # pawn capture move
+                if self.board[candidate_destination_square] is not None:
+                    candidate_captured_piece: 'Piece' = self.board[candidate_destination_square]
+                    if candidate_captured_piece.color != self.color:
+                        pawn_capture_move = PawnCaptureMove(
+                            self.board, self, candidate_destination_square, candidate_captured_piece
+                        )
+                        if self.is_in_promotion_rank(candidate_destination_square):
+                            pawn_capture_move = PawnPromotionMove(pawn_capture_move)
+                        piece_moves.append(pawn_capture_move)
+                elif candidate_destination_square == self.board.en_passant_position:
+                    en_passant_pawn: 'Pawn' = self.board[
+                        vector_to_algebraic_notation(
+                            candidate_destination_vector - get_pawn_advance_direction(self.color) * np.array([1, 0])
+                        )
+                    ]
+                    piece_moves.append(PawnCaptureMove(self.board, self, candidate_destination_square, en_passant_pawn))
+
+        return piece_moves
 
 
 #########
