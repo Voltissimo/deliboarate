@@ -455,14 +455,15 @@ class Pawn(Piece):
                         if self.is_in_promotion_rank(candidate_destination_square):
                             pawn_capture_move = PawnPromotionMove(pawn_capture_move)
                         piece_moves.append(pawn_capture_move)
-                elif candidate_destination_square == self.board.en_passant_position:
+                elif candidate_destination_square == self.board.en_passant_position:  # en passant move
                     en_passant_pawn: 'Pawn' = self.board[
                         vector_to_algebraic_notation(
                             candidate_destination_vector - get_pawn_advance_direction(self.color) * np.array([1, 0])
                         )
                     ]
-                    piece_moves.append(PawnCaptureMove(self.board, self, candidate_destination_square, en_passant_pawn))
-
+                    piece_moves.append(
+                        PawnEnPassantMove(self.board, self, candidate_destination_square, en_passant_pawn)
+                    )
         return piece_moves
 
 
@@ -557,6 +558,11 @@ class PawnJumpMove(Move):
 class PawnCaptureMove(CaptureMove):
     def __str__(self):
         return self.moved_piece.piece_position[0] + 'x' + self.destination_coordinate
+
+
+class PawnEnPassantMove(PawnCaptureMove):
+    def __str__(self):
+        return self.moved_piece.piece_position[0] + 'x' + self.destination_coordinate + 'e.p.'
 
 
 class PawnPromotionMove(Move):
