@@ -539,20 +539,26 @@ class CaptureMove(Move):
         return str(self.moved_piece).upper() + 'x' + self.destination_coordinate  # TODO same as above
 
 
-class PawnMove(Move):
-    def execute(self) -> 'Board':
-        pass
-
+class PawnMove(NormalMove):
     def __str__(self):
         return self.destination_coordinate
 
 
-class PawnJumpMove(Move):
+class PawnJumpMove(PawnMove):
     def execute(self) -> 'Board':
-        pass  # set en passant pawn here
-
-    def __str__(self):
-        return self.destination_coordinate
+        board = super().execute()
+        en_passant_square = vector_to_algebraic_notation(
+            algebraic_notation_to_vector(self.moved_piece.piece_position)
+            - get_pawn_advance_direction(self.moved_piece.color) * np.array([1, 0])
+        )
+        board.en_passant_position = en_passant_square
+        # board.load_players(
+        #     self.board.white_player.king_side_castle_availability,
+        #     self.board.white_player.queen_side_castle_available,
+        #     self.board.black_player.king_side_castle_availability,
+        #     self.board.black_player.queen_side_castle_available
+        # )
+        return board
 
 
 class PawnCaptureMove(CaptureMove):
