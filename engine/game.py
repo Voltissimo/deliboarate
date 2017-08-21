@@ -487,7 +487,23 @@ class Move:
 
 class NormalMove(Move):
     def execute(self) -> 'Board':
-        pass
+        board = Board(self.board.current_player.get_opponent().color,
+                      self.board.half_move_clock,
+                      int(self.board.full_move_number) + 1)
+        for piece in self.board.current_player.get_opponent().active_pieces:
+            board[piece.piece_position] = piece.update_board(board)
+        for piece in self.board.current_player.active_pieces:
+            if piece == self.moved_piece:
+                board[self.destination_coordinate] = self.moved_piece.move(self, board)
+            else:
+                board[piece.piece_position] = piece.update_board(board)
+        board.load_players(
+            self.board.white_player.king_side_castle_availability,
+            self.board.white_player.queen_side_castle_available,
+            self.board.black_player.king_side_castle_availability,
+            self.board.black_player.queen_side_castle_available
+        )
+        return board
 
     def __str__(self) -> str:
         return str(self.moved_piece).upper() + self.destination_coordinate  # TODO specify the file when ok for 2 moves?
