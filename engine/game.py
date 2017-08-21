@@ -63,16 +63,52 @@ def is_vector_coordinate_valid(vector: np.ndarray) -> bool:
 # Player #
 ##########
 class Player:
-    def __init__(self, board: 'Board', color: Union['WHITE', 'BLACK']):
+    def __init__(self,
+                 board: 'Board',
+                 color: Union['WHITE', 'BLACK'],
+                 king: 'King',
+                 active_pieces: List['Piece'],
+                 king_side_castle: bool,
+                 queen_side_castle: bool):
         self.board = board
         self.color: str = color
-        self.active_pieces = []
-        self.king = None
-        self.king_side_castle_availability = False
-        self.queen_side_castle_availability = False
+        self.active_pieces = active_pieces
+        self.king = king
+        self.king_side_castle_availability = king_side_castle
+        self.queen_side_castle_availability = queen_side_castle
+        self.moves = self.calculate_moves()
+
+    def calculate_castling_moves(self) -> List['CastleMove']:
+        pass
 
     def calculate_legal_moves(self) -> List['Move']:
-        pass
+        legal_moves = []
+        for move in self.moves + self.calculate_castling_moves():
+            transition_board = move.execute()
+            if not transition_board.current_player.get_opponent().is_in_check():
+                legal_moves.append(move)
+        return legal_moves
+
+    def is_in_check(self) -> bool:
+        for enemy_move in self.get_opponent().moves:
+            if enemy_move.destination_coordinate == self.king.piece_position:
+                return True
+        return False
+
+    def is_king_escape_moves_available(self) -> bool:
+        return bool(self.calculate_legal_moves())
+
+    def is_in_stalemate(self) -> bool:
+        return (not self.is_in_check()) and (not self.is_king_escape_moves_available())
+
+    def is_in_checkmate(self) -> bool:
+        return self.is_in_check() and (not self.is_king_escape_moves_available())
+
+    def calculate_moves(self) -> List['Move']:
+        moves = []
+        for piece in self.active_pieces:
+            moves.append += piece.calculate_piece_moves()
+        return moves
 
     def get_opponent(self) -> 'Player':
         return self.board.black_player if self.color == WHITE else self.board.black_player
@@ -97,7 +133,9 @@ class Board:
         self.full_move_number = full_move_number
         self.en_passant_position: Union[None, str] = en_passant_position
         # these will be overridden by load_players()
-        self.white_player, self.black_player = Player(self, WHITE), Player(self, BLACK)
+        self.white_player, self.black_player = \
+            Player(self, WHITE, King(self, 'null', WHITE), [], False, False), \
+            Player(self, BLACK, King(self, 'null', BLACK), [], False, False)
         self.current_player: 'Player' = None
         self.load_players(False, False, False, False)
 
@@ -240,25 +278,34 @@ class Board:
     def load_players(self,
                      white_king_side_castle: bool, white_queen_side_castle: bool,
                      black_king_side_castle: bool, black_queen_side_castle: bool):
-        self.white_player = Player(self, WHITE)
-        self.black_player = Player(self, BLACK)
-        self.white_player.king_side_castle_availability = white_king_side_castle
-        self.black_player.king_side_castle_availability = black_king_side_castle
-        self.white_player.queen_side_castle_availability = white_queen_side_castle
-        self.black_player.queen_side_castle_availability = black_queen_side_castle
-        self.current_player = self.white_player if self.active_color == WHITE else self.black_player
+        white_active_pieces, black_active_pieces = [], []
+        white_king, black_king = None, None
         for tile in self.board:
             if tile is not None:
                 piece: 'Piece' = tile
                 if piece.color == WHITE:
-                    self.white_player.active_pieces.append(piece)
+                    white_active_pieces.append(piece)
                     if type(piece) == King:
-                        self.white_player.king = piece
+                        white_king: 'King' = piece
                 else:
-                    self.black_player.active_pieces.append(piece)
+                    black_active_pieces.append(piece)
                     if type(piece) == King:
-                        self.black_player.king = piece
+                        black_king: 'King' = piece
+        self.white_player = Player(self, WHITE,
+                                   white_king, white_active_pieces, white_king_side_castle, white_queen_side_castle)
+        self.black_player = Player(self, BLACK,
+                                   black_king, black_active_pieces, black_king_side_castle, black_queen_side_castle)
+        self.current_player = self.white_player if self.active_color == WHITE else self.black_player
 
+    def create_move(self, source_coordinate: str, destination_coordinate: str) -> dict:
+        """
+        Create a move from the source and destination coordinates and execute it
+
+        :param source_coordinate:
+        :param destination_coordinate:
+        :return: a dictionary, {"success": bool, "board": Board}
+        """
+        pass
 
 ##########
 # Pieces #
