@@ -1,3 +1,4 @@
+import copy
 import numpy as np
 from typing import Union, List
 
@@ -102,7 +103,8 @@ class Board:
         self.full_move_number = full_move_number
         self.en_passant_position: Union[None, str] = en_passant_position
         # these will be overridden by load_players()
-        self.white_player, self.black_player, self.current_player = Player(self, WHITE), Player(self, BLACK), None
+        self.white_player, self.black_player = Player(self, WHITE), Player(self, BLACK)
+        self.current_player: 'Player' = None
         self.load_players(False, False, False, False)
 
     def __getitem__(self, key: str) -> Union[None, 'Piece']:
@@ -277,12 +279,20 @@ class Piece:
         self.piece_position = piece_position
         self.color = color
 
-    def __eq__(self, other):
-        pass
+    def __eq__(self, other: 'Piece'):
+        return all((self.color == other.color, type(self) == type(other), self.piece_position == other.piece_position))
+
+    def __ne__(self, other: 'Piece'):
+        return not self == other
 
     @classmethod
-    def move(cls, move: 'Move'):
-        return cls(move.destination_coordinate, move.moved_piece.color, True)
+    def move(cls, move: 'Move', new_board: 'Board') -> 'Piece':
+        return cls(new_board, move.destination_coordinate, move.moved_piece.color)
+
+    def update_board(self, new_board: 'Board') -> 'Piece':
+        piece_copy = copy.deepcopy(self)
+        piece_copy.board = new_board
+        return piece_copy
 
     def __repr__(self):
         raise NotImplementedError
@@ -529,24 +539,61 @@ class PawnPromotionMove(Move):
 
 
 class CastleMove(Move):
+    def __init__(self, board: 'Board',
+                 king: 'King', king_destination_coordinate: str,
+                 rook: 'Rook', rook_destination_coordinate: str
+                 ):
+        super().__init__(board, king, king_destination_coordinate)
+        self.king = king
+        self.rook = rook
+        self.rook_destination_coordinate = rook_destination_coordinate
+
     def execute(self) -> 'Board':
-        pass
+        board = Board(self.board.current_player.get_opponent().color,
+                      self.board.half_move_clock,
+                      int(self.board.full_move_number) + 1)
+        for piece in self.board.current_player.get_opponent().active_pieces:
+            board[piece.piece_position] = piece.update_board(board)
+        for piece in self.board.current_player.active_pieces:
+            if piece == self.king:
+                board[self.destination_coordinate] = self.king.move(self, board)
+            elif piece == self.rook:
+                board[self.rook_destination_coordinate] = Rook(board, self.rook_destination_coordinate, self.rook.color)
+            else:
+                board[piece.piece_position] = piece.update_board(board)
+        board.load_players(
+            self.board.white_player.king_side_castle_availability,
+            self.board.white_player.queen_side_castle_available,
+            self.board.black_player.king_side_castle_availability,
+            self.board.black_player.queen_side_castle_available
+        )
+        return board
 
     def __str__(self):
         raise NotImplementedError
 
 
 class KingSideCastleMove(CastleMove):
-    def __init__(self, board: 'Board', moved_piece: 'Piece', destination_coordinate: str):
-        super().__init__(board, moved_piece, destination_coordinate)  # TODO same as below
+    def __init__(self, board: 'Board', king: 'King'):
+        king_destination_coordinate = "g1" if king.color == WHITE else "g8"
+        rook_coordinate = "h1" if king.color == WHITE else "h8"
+        rook: 'Rook' = board[rook_coordinate]
+        assert type(rook) == Rook
+        rook_destination_coordinate = "f1" if king.color == WHITE else "f8"
+        super().__init__(board, king, king_destination_coordinate, rook, rook_destination_coordinate)
 
     def __str__(self):
         return "O-O"
 
 
 class QueenSideCastleMove(CastleMove):
-    def __init__(self, board: 'Board', moved_piece: 'Piece', destination_coordinate: str):
-        super().__init__(board, moved_piece, destination_coordinate)  # TODO fix coordinate
+    def __init__(self, board: 'Board', king: 'King'):
+        king_destination_coordinate = "c1" if king.color == WHITE else "c8"
+        rook_coordinate = "h1" if king.color == WHITE else "h8"
+        rook: 'Rook' = board[rook_coordinate]
+        assert type(rook) == Rook
+        rook_destination_coordinate = "d1" if king.color == WHITE else "d8"
+        super().__init__(board, king, king_destination_coordinate, rook, rook_destination_coordinate)
 
     def __str__(self):
         return "O-O-O"
