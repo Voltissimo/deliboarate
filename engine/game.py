@@ -277,6 +277,9 @@ class Piece:
         self.piece_position = piece_position
         self.color = color
 
+    def __eq__(self, other):
+        pass
+
     @classmethod
     def move(cls, move: 'Move'):
         return cls(move.destination_coordinate, move.moved_piece.color, True)
@@ -334,6 +337,8 @@ class King(Piece):
 
 
 class Queen(Piece):
+    PIECE_VALUE = 9
+
     def __repr__(self):
         return 'Q' if self.color == WHITE else 'q'
 
@@ -345,6 +350,8 @@ class Queen(Piece):
 
 
 class Rook(Piece):
+    PIECE_VALUE = 5
+
     def __repr__(self):
         return 'R' if self.color == WHITE else 'r'
 
@@ -356,6 +363,8 @@ class Rook(Piece):
 
 
 class Bishop(Piece):
+    PIECE_VALUE = 3
+
     def __repr__(self):
         return 'B' if self.color == WHITE else 'b'
 
@@ -367,6 +376,8 @@ class Bishop(Piece):
 
 
 class Knight(Piece):
+    PIECE_VALUE = 3
+
     def __repr__(self):
         return 'N' if self.color == WHITE else 'n'
 
@@ -390,6 +401,8 @@ class Knight(Piece):
 
 
 class Pawn(Piece):
+    PIECE_VALUE = 1
+
     def __init__(self, board: 'Board', piece_position: str, color: Union['WHITE', 'BLACK']):
         super().__init__(board, piece_position, color)
 
@@ -516,9 +529,6 @@ class PawnPromotionMove(Move):
 
 
 class CastleMove(Move):
-    def __init__(self, board: 'Board', moved_piece: 'Piece', destination_coordinate: str):
-        super().__init__(board, moved_piece, destination_coordinate)
-
     def execute(self) -> 'Board':
         pass
 
@@ -527,10 +537,16 @@ class CastleMove(Move):
 
 
 class KingSideCastleMove(CastleMove):
+    def __init__(self, board: 'Board', moved_piece: 'Piece', destination_coordinate: str):
+        super().__init__(board, moved_piece, destination_coordinate)  # TODO same as below
+
     def __str__(self):
         return "O-O"
 
 
 class QueenSideCastleMove(CastleMove):
+    def __init__(self, board: 'Board', moved_piece: 'Piece', destination_coordinate: str):
+        super().__init__(board, moved_piece, destination_coordinate)  # TODO fix coordinate
+
     def __str__(self):
         return "O-O-O"
