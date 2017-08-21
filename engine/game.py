@@ -1,6 +1,6 @@
 import copy
 import numpy as np
-from typing import Union, List
+from typing import List, Type, Union
 
 #########
 # CONST #
@@ -69,13 +69,7 @@ class Player:
         self.active_pieces = []
         self.king = None
         self.king_side_castle_availability = False
-        self.queen_side_castle_available = False
-
-    def is_king_side_castle_available(self) -> bool:
-        pass
-
-    def is_queen_side_castle_available(self) -> bool:
-        pass
+        self.queen_side_castle_availability = False
 
     def calculate_legal_moves(self) -> List['Move']:
         pass
@@ -228,8 +222,8 @@ class Board:
         # castling availability
         castling_availability = ''
         for condition, string_to_append in zip(
-                [self.white_player.king_side_castle_availability, self.white_player.queen_side_castle_available,
-                 self.black_player.king_side_castle_availability, self.black_player.queen_side_castle_available],
+                [self.white_player.king_side_castle_availability, self.white_player.queen_side_castle_availability,
+                 self.black_player.king_side_castle_availability, self.black_player.queen_side_castle_availability],
                 ['K', 'Q', 'k', 'q']
         ):
             if condition:
@@ -250,8 +244,8 @@ class Board:
         self.black_player = Player(self, BLACK)
         self.white_player.king_side_castle_availability = white_king_side_castle
         self.black_player.king_side_castle_availability = black_king_side_castle
-        self.white_player.queen_side_castle_available = white_queen_side_castle
-        self.black_player.queen_side_castle_available = black_queen_side_castle
+        self.white_player.queen_side_castle_availability = white_queen_side_castle
+        self.black_player.queen_side_castle_availability = black_queen_side_castle
         self.current_player = self.white_player if self.active_color == WHITE else self.black_player
         for tile in self.board:
             if tile is not None:
@@ -452,7 +446,7 @@ class Pawn(Piece):
                         pawn_capture_move = PawnCaptureMove(
                             self.board, self, candidate_destination_square, candidate_captured_piece
                         )
-                        if self.is_in_promotion_rank(candidate_destination_square):
+                        if self.is_in_promotion_rank(candidate_destination_square):  # pawn promotion
                             pawn_capture_move = PawnPromotionMove(pawn_capture_move)
                         piece_moves.append(pawn_capture_move)
                 elif candidate_destination_square == self.board.en_passant_position:  # en passant move
@@ -500,9 +494,9 @@ class NormalMove(Move):
                 board[piece.piece_position] = piece.update_board(board)
         board.load_players(
             self.board.white_player.king_side_castle_availability,
-            self.board.white_player.queen_side_castle_available,
+            self.board.white_player.queen_side_castle_availability,
             self.board.black_player.king_side_castle_availability,
-            self.board.black_player.queen_side_castle_available
+            self.board.black_player.queen_side_castle_availability
         )
         return board
 
@@ -529,9 +523,9 @@ class CaptureMove(Move):
                 board[piece.piece_position] = piece.update_board(board)
         board.load_players(
             self.board.white_player.king_side_castle_availability,
-            self.board.white_player.queen_side_castle_available,
+            self.board.white_player.queen_side_castle_availability,
             self.board.black_player.king_side_castle_availability,
-            self.board.black_player.queen_side_castle_available
+            self.board.black_player.queen_side_castle_availability
         )
         return board
 
@@ -554,9 +548,9 @@ class PawnJumpMove(PawnMove):
         board.en_passant_position = en_passant_square
         # board.load_players(
         #     self.board.white_player.king_side_castle_availability,
-        #     self.board.white_player.queen_side_castle_available,
+        #     self.board.white_player.queen_side_castle_availability,
         #     self.board.black_player.king_side_castle_availability,
-        #     self.board.black_player.queen_side_castle_available
+        #     self.board.black_player.queen_side_castle_availability
         # )
         return board
 
@@ -572,15 +566,35 @@ class PawnEnPassantMove(PawnCaptureMove):
 
 
 class PawnPromotionMove(Move):
+    def __init__(self,
+                 decorated_move: Union['PawnMove', 'PawnCaptureMove'],
+                 promotion_piece_type: Union[Type['Queen'], Type['Knight'], Type['Rook'], Type['Bishop']]=Queen):
+        super().__init__(decorated_move.board, decorated_move.moved_piece, decorated_move.destination_coordinate)
+        self.decorated_move = decorated_move
+        self.promotion_piece_type = promotion_piece_type
+
     def execute(self) -> 'Board':
-        pass
+        board = Board(self.board.current_player.get_opponent().color,
+                      self.board.half_move_clock,
+                      int(self.board.full_move_number) + 1)
+        for piece in self.board.current_player.get_opponent().active_pieces:
+            board[piece.piece_position] = piece.update_board(board)
+        for piece in self.board.current_player.active_pieces:
+            if piece == self.moved_piece:
+                board[self.destination_coordinate] = \
+                    self.promotion_piece_type(board, self.destination_coordinate, self.moved_piece.color)
+            else:
+                board[piece.piece_position] = piece.update_board(board)
+        board.load_players(
+            self.board.white_player.king_side_castle_availability,
+            self.board.white_player.queen_side_castle_availability,
+            self.board.black_player.king_side_castle_availability,
+            self.board.black_player.queen_side_castle_availability
+        )
+        return board
 
     def __str__(self):
         return str(self.decorated_move)
-
-    def __init__(self, decorated_move: Union['PawnMove', 'PawnCaptureMove']):
-        super().__init__(decorated_move.board, decorated_move.moved_piece, decorated_move.destination_coordinate)
-        self.decorated_move = decorated_move
 
 
 class CastleMove(Move):
@@ -608,9 +622,9 @@ class CastleMove(Move):
                 board[piece.piece_position] = piece.update_board(board)
         board.load_players(
             self.board.white_player.king_side_castle_availability,
-            self.board.white_player.queen_side_castle_available,
+            self.board.white_player.queen_side_castle_availability,
             self.board.black_player.king_side_castle_availability,
-            self.board.black_player.queen_side_castle_available
+            self.board.black_player.queen_side_castle_availability
         )
         return board
 
