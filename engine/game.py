@@ -30,8 +30,19 @@ def algebraic_notation_to_index(algebraic_notation: str) -> int:
 
 
 def algebraic_notation_to_vector(algebraic_notation: str) -> np.ndarray:
+    """
+    :param algebraic_notation:
+    :return: the algebraic notation as a vector, with a8 as [0, 0] and h1 as [7, 7]
+
+    >>> algebraic_notation_to_vector("a1")
+    array([7, 0])
+    >>> algebraic_notation_to_vector("h1")
+    array([7, 7])
+    >>> algebraic_notation_to_vector("a8")
+    array([0, 0])
+    """
     file, rank = algebraic_notation
-    return np.array([RANKS.index(rank), FILES.index(file)])
+    return np.array([7 - RANKS.index(rank), FILES.index(file)])
 
 
 def vector_to_algebraic_notation(vector: np.ndarray) -> str:
@@ -79,7 +90,7 @@ class Player:
         self.moves = self.calculate_moves()
 
     def calculate_castling_moves(self) -> List['CastleMove']:
-        pass
+        return []
 
     def calculate_legal_moves(self) -> List['Move']:
         legal_moves = []
@@ -107,7 +118,7 @@ class Player:
     def calculate_moves(self) -> List['Move']:
         moves = []
         for piece in self.active_pieces:
-            moves.append += piece.calculate_piece_moves()
+            moves += piece.calculate_piece_moves()
         return moves
 
     def get_opponent(self) -> 'Player':
@@ -134,8 +145,8 @@ class Board:
         self.en_passant_position: Union[None, str] = en_passant_position
         # these will be overridden by load_players()
         self.white_player, self.black_player = \
-            Player(self, WHITE, King(self, 'null', WHITE), [], False, False), \
-            Player(self, BLACK, King(self, 'null', BLACK), [], False, False)
+            Player(self, WHITE, King(self, 'a1', WHITE), [], False, False), \
+            Player(self, BLACK, King(self, 'a1', BLACK), [], False, False)
         self.current_player: 'Player' = None
         self.load_players(False, False, False, False)
 
@@ -307,6 +318,7 @@ class Board:
         """
         pass
 
+
 ##########
 # Pieces #
 ##########
@@ -321,7 +333,9 @@ class Piece:
         self.color = color
 
     def __eq__(self, other: 'Piece'):
-        return all((self.color == other.color, type(self) == type(other), self.piece_position == other.piece_position))
+        if type(self) != type(other):
+            return False
+        return self.color == other.color and self.piece_position == other.piece_position
 
     def __ne__(self, other: 'Piece'):
         return not self == other
@@ -344,7 +358,9 @@ class Piece:
     def calculate_piece_moves(self) -> List['Move']:
         raise NotImplementedError  # whether or not the king is put into danger after the move is done in Player class
 
-    def calculate_moves_through_unoccupied_squares(self, move_vectors: List[np.ndarray]) -> List['Move']:
+    def calculate_moves_through_unoccupied_squares(self,
+                                                   move_vectors: List[np.ndarray],
+                                                   decorator_class=None) -> List['Move']:
         moves = []
         position_vector = algebraic_notation_to_vector(self.piece_position)
         for move_vector in move_vectors:
@@ -353,13 +369,25 @@ class Piece:
             while self.board[candidate_destination_square] is None:
                 if not is_vector_coordinate_valid(candidate_destination_vector):
                     break
-                moves.append(Move(self.board, self, candidate_destination_square))
+                if decorator_class is None:
+                    moves.append(Move(self.board, self, candidate_destination_square))
+                else:
+                    moves.append(decorator_class(Move(self.board, self, candidate_destination_square)))
                 candidate_destination_vector += move_vector
                 candidate_destination_square = vector_to_algebraic_notation(candidate_destination_vector)
             else:
                 candidate_captured_piece: 'Piece' = self.board[candidate_destination_square]
                 if candidate_captured_piece.color != self.color:
-                    moves.append(CaptureMove(self.board, self, candidate_destination_square, candidate_captured_piece))
+                    if decorator_class is None:
+                        moves.append(
+                            CaptureMove(self.board, self, candidate_destination_square, candidate_captured_piece)
+                        )
+                    else:
+                        moves.append(
+                            decorator_class(
+                                CaptureMove(self.board, self, candidate_destination_square, candidate_captured_piece)
+                            )
+                        )
         return moves
 
 
@@ -377,12 +405,12 @@ class King(Piece):
                 continue
             candidate_destination = vector_to_algebraic_notation(candidate_destination_vector)
             if self.board[candidate_destination] is None:  # if the move leaves king in danger is checked after
-                piece_moves.append(NormalMove(self.board, self, candidate_destination))
+                piece_moves.append(KingMove(NormalMove(self.board, self, candidate_destination)))
             else:
                 candidate_captured_piece = self.board[candidate_destination]
                 if candidate_captured_piece.color != self.color:
                     piece_moves.append(
-                        CaptureMove(self.board, self, candidate_destination, candidate_captured_piece)
+                        KingMove(CaptureMove(self.board, self, candidate_destination, candidate_captured_piece))
                     )
         return piece_moves
 
@@ -395,7 +423,7 @@ class Queen(Piece):
 
     def calculate_piece_moves(self) -> List['Move']:
         return self.calculate_moves_through_unoccupied_squares([
-            np.ndarray(direction) for direction in
+            np.array(direction) for direction in
             ((1, 0), (1, -1), (0, -1), (-1, -1), (-1, 0), (-1, 1), (0, 1), (1, 1))
         ])
 
@@ -407,10 +435,11 @@ class Rook(Piece):
         return 'R' if self.color == WHITE else 'r'
 
     def calculate_piece_moves(self) -> List['Move']:
-        return self.calculate_moves_through_unoccupied_squares([
-            np.ndarray(direction) for direction in
-            ((1, 0), (0, -1), (-1, 0), (0, 1))
-        ])
+        return self.calculate_moves_through_unoccupied_squares(
+            [np.array(direction) for direction in
+             ((1, 0), (0, -1), (-1, 0), (0, 1))],
+            decorator_class=RookMove
+        )
 
 
 class Bishop(Piece):
@@ -421,7 +450,7 @@ class Bishop(Piece):
 
     def calculate_piece_moves(self) -> List['Move']:
         return self.calculate_moves_through_unoccupied_squares([
-            np.ndarray(direction) for direction in
+            np.array(direction) for direction in
             ((1, -1), (-1, -1), (-1, 1), (1, 1))
         ])
 
@@ -461,19 +490,20 @@ class Pawn(Piece):
         return 'P' if self.color == WHITE else 'p'
 
     def is_in_initial_rank(self, position: str) -> bool:
-        return position[1] == ('1' if self.color == WHITE else '8')
+        return position[1] == ('2' if self.color == WHITE else '7')
 
     def is_in_promotion_rank(self, position: str) -> bool:
         return position[1] == ('8' if self.color == WHITE else '1')
 
     def calculate_piece_moves(self) -> List['Move']:
-
         piece_moves = []
         piece_position_vector = algebraic_notation_to_vector(self.piece_position)
         for move_vector in [np.array(move_vector_list) for move_vector_list in ((1, 0), (1, 1), (1, -1))]:
             candidate_destination_vector = piece_position_vector + move_vector * get_pawn_advance_direction(self.color)
+            if not is_vector_coordinate_valid(candidate_destination_vector):
+                continue
             candidate_destination_square = vector_to_algebraic_notation(candidate_destination_vector)
-            if move_vector == np.array([1, 0]):  # normal move
+            if all(move_vector == np.array([1, 0])):  # normal move
                 if self.board[candidate_destination_square] is None:
                     if self.is_in_promotion_rank(candidate_destination_square):  # pawn promotion
                         piece_moves.append(PawnPromotionMove(PawnMove(self.board, self, candidate_destination_square)))
@@ -615,29 +645,67 @@ class PawnEnPassantMove(PawnCaptureMove):
 class PawnPromotionMove(Move):
     def __init__(self,
                  decorated_move: Union['PawnMove', 'PawnCaptureMove'],
-                 promotion_piece_type: Union[Type['Queen'], Type['Knight'], Type['Rook'], Type['Bishop']]=Queen):
+                 promotion_piece_type: Union[Type['Queen'], Type['Knight'], Type['Rook'], Type['Bishop']] = Queen):
         super().__init__(decorated_move.board, decorated_move.moved_piece, decorated_move.destination_coordinate)
         self.decorated_move = decorated_move
         self.promotion_piece_type = promotion_piece_type
 
     def execute(self) -> 'Board':
-        board = Board(self.board.current_player.get_opponent().color,
-                      self.board.half_move_clock,
-                      int(self.board.full_move_number) + 1)
-        for piece in self.board.current_player.get_opponent().active_pieces:
-            board[piece.piece_position] = piece.update_board(board)
-        for piece in self.board.current_player.active_pieces:
-            if piece == self.moved_piece:
-                board[self.destination_coordinate] = \
-                    self.promotion_piece_type(board, self.destination_coordinate, self.moved_piece.color)
-            else:
-                board[piece.piece_position] = piece.update_board(board)
+        board = self.decorated_move.execute()
+        board[self.destination_coordinate] = \
+            self.promotion_piece_type(board, self.destination_coordinate, self.moved_piece.color)
         board.load_players(
             self.board.white_player.king_side_castle_availability,
             self.board.white_player.queen_side_castle_availability,
             self.board.black_player.king_side_castle_availability,
             self.board.black_player.queen_side_castle_availability
         )
+        return board
+
+    def __str__(self):
+        return str(self.decorated_move)
+
+
+class KingMove(Move):
+    def __init__(self, decorated_move: Union['NormalMove', 'CaptureMove']):
+        super().__init__(decorated_move.board, decorated_move.moved_piece, decorated_move.destination_coordinate)
+        self.decorated_move = decorated_move
+
+    def execute(self) -> 'Board':
+        board = self.decorated_move.execute()
+        board.load_players(
+            False if self.moved_piece.color == WHITE else self.board.white_player.king_side_castle_availability,
+            False if self.moved_piece.color == WHITE else self.board.white_player.queen_side_castle_availability,
+            False if self.moved_piece.color == BLACK else self.board.black_player.king_side_castle_availability,
+            False if self.moved_piece.color == BLACK else self.board.black_player.queen_side_castle_availability
+        )
+        return board
+
+    def __str__(self):
+        return str(self.decorated_move)
+
+
+class RookMove(Move):
+    def __init__(self, decorated_move: Union['NormalMove', 'CaptureMove']):
+        super().__init__(decorated_move.board, decorated_move.moved_piece, decorated_move.destination_coordinate)
+        self.decorated_move = decorated_move
+
+    def execute(self) -> 'Board':
+        board = self.decorated_move.execute()
+        if self.moved_piece.color == WHITE:
+            board.load_players(
+                self.board.white_player.king_side_castle_availability,
+                self.board.white_player.queen_side_castle_availability,
+                self.board.black_player.king_side_castle_availability,
+                self.board.black_player.queen_side_castle_availability
+            )
+        else:
+            board.load_players(
+                self.board.white_player.king_side_castle_availability,
+                self.board.white_player.queen_side_castle_availability,
+                self.board.black_player.king_side_castle_availability,
+                self.board.black_player.queen_side_castle_availability
+            )  # TODO this
         return board
 
     def __str__(self):
@@ -668,10 +736,10 @@ class CastleMove(Move):
             else:
                 board[piece.piece_position] = piece.update_board(board)
         board.load_players(
-            self.board.white_player.king_side_castle_availability,
-            self.board.white_player.queen_side_castle_availability,
-            self.board.black_player.king_side_castle_availability,
-            self.board.black_player.queen_side_castle_availability
+            False if self.moved_piece.color == WHITE else self.board.white_player.king_side_castle_availability,
+            False if self.moved_piece.color == WHITE else self.board.white_player.queen_side_castle_availability,
+            False if self.moved_piece.color == BLACK else self.board.black_player.king_side_castle_availability,
+            False if self.moved_piece.color == BLACK else self.board.black_player.queen_side_castle_availability
         )
         return board
 
