@@ -139,7 +139,7 @@ class Player:
         return moves
 
     def get_opponent(self) -> 'Player':
-        return self.board.black_player if self.color == WHITE else self.board.black_player
+        return self.board.black_player if self.color == WHITE else self.board.white_player
 
 
 #########
@@ -661,12 +661,12 @@ class PawnJumpMove(PawnMove):
             - get_pawn_advance_direction(self.moved_piece.color) * np.array([1, 0])
         )
         board.en_passant_position = en_passant_square
-        # board.load_players(
-        #     self.board.white_player.king_side_castle_availability,
-        #     self.board.white_player.queen_side_castle_availability,
-        #     self.board.black_player.king_side_castle_availability,
-        #     self.board.black_player.queen_side_castle_availability
-        # )
+        board.load_players(
+            self.board.white_player.king_side_castle_availability,
+            self.board.white_player.queen_side_castle_availability,
+            self.board.black_player.king_side_castle_availability,
+            self.board.black_player.queen_side_castle_availability
+        )
         return board
 
 
