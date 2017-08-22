@@ -111,6 +111,26 @@ class Player:
         return castling_moves
 
     def calculate_legal_moves(self) -> List['Move']:
+        """
+        :return: the moves this player is allowed to make
+
+        >>> set([str(move) for move in Board.from_FEN(
+        ...        "r1bqkbnr/pppp1ppp/8/8/3PP3/5n2/PPP2PPP/RNBQKB1R w KQkq - 1 4"
+        ...    ).current_player.calculate_legal_moves()]) == {'gxf3', 'Qxf3', 'Ke2'}
+        True
+        >>> "O-O" in set([str(move) for move in Board.from_FEN(
+        ...        "r1bqkb1r/ppp2ppp/3p1n2/8/3PP3/5P2/PPP2PBP/RNBQK2R w KQkq - 1 4"
+        ...    ).current_player.calculate_legal_moves()])
+        True
+        >>> "O-O" in set([str(move) for move in Board.from_FEN(
+        ...        "r1bqkb1r/pppp1ppp/5n2/8/3PP3/5PP/PPP2PB1/RNBQK2R w Qkq - 1 4"
+        ...    ).current_player.calculate_legal_moves()])
+        False
+        >>> "O-O-O" in set([str(move) for move in Board.from_FEN(
+        ...        "rnbqkbnr/8/pppppppp/8/PPPPPPPP/8/NQB5/R3KBNR w KQkq - 0 1"
+        ...    ).current_player.calculate_legal_moves()])
+        True
+        """
         legal_moves = []
         for move in self.moves + self.calculate_castling_moves():
             transition_board = move.execute()
@@ -429,18 +449,23 @@ class Piece:
         moves = []
         position_vector = algebraic_notation_to_vector(self.piece_position)
         for move_vector in move_vectors:
-            candidate_destination_vector = position_vector
+            candidate_destination_vector = position_vector + move_vector
+            if not is_vector_coordinate_valid(candidate_destination_vector):
+                continue
             candidate_destination_square = vector_to_algebraic_notation(candidate_destination_vector)
             while self.board[candidate_destination_square] is None:
+                candidate_destination_square = vector_to_algebraic_notation(candidate_destination_vector)
+                if decorator_class is None:
+                    moves.append(NormalMove(self.board, self, candidate_destination_square))
+                else:
+                    moves.append(decorator_class(NormalMove(self.board, self, candidate_destination_square)))
+                candidate_destination_vector += move_vector
                 if not is_vector_coordinate_valid(candidate_destination_vector):
                     break
-                if decorator_class is None:
-                    moves.append(Move(self.board, self, candidate_destination_square))
-                else:
-                    moves.append(decorator_class(Move(self.board, self, candidate_destination_square)))
-                candidate_destination_vector += move_vector
                 candidate_destination_square = vector_to_algebraic_notation(candidate_destination_vector)
             else:
+                if not is_vector_coordinate_valid(candidate_destination_vector):
+                    continue
                 candidate_captured_piece: 'Piece' = self.board[candidate_destination_square]
                 if candidate_captured_piece.color != self.color:
                     if decorator_class is None:
@@ -854,3 +879,7 @@ class QueenSideCastleMove(CastleMove):
 
     def __str__(self):
         return "O-O-O"
+
+
+if __name__ == '__main__':
+    pass
