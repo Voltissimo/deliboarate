@@ -1,4 +1,3 @@
-import copy
 import numpy as np
 from typing import List, Type, Union
 
@@ -90,7 +89,25 @@ class Player:
         self.moves = self.calculate_moves()
 
     def calculate_castling_moves(self) -> List['CastleMove']:
-        return []
+        castling_moves = []
+        FIRST_RANK = "1" if self.color == WHITE else "8"
+        if self.king_side_castle_availability:  # king and rook on first rank and not moved before
+            if all([self.board[file + FIRST_RANK] is None for file in ("f", "g")]):
+                for enemy_move in self.get_opponent().moves:
+                    if enemy_move.destination_coordinate[0] in ("e", "f", "g") \
+                            and enemy_move.destination_coordinate[1] == FIRST_RANK:
+                        break
+                else:
+                    castling_moves.append(KingSideCastleMove(self.board, self.king))
+        if self.queen_side_castle_availability:
+            if all([self.board[file + FIRST_RANK] is None for file in ("b", "c", "d")]):
+                for enemy_move in self.get_opponent().moves:
+                    if enemy_move.destination_coordinate[0] in ("c", "d", "e") \
+                            and enemy_move.destination_coordinate[1] == FIRST_RANK:
+                        break
+                else:
+                    castling_moves.append(QueenSideCastleMove(self.board, self.king))
+        return castling_moves
 
     def calculate_legal_moves(self) -> List['Move']:
         legal_moves = []
@@ -148,7 +165,6 @@ class Board:
             Player(self, WHITE, King(self, 'a1', WHITE), [], False, False), \
             Player(self, BLACK, King(self, 'a1', BLACK), [], False, False)
         self.current_player: 'Player' = None
-        self.load_players(False, False, False, False)
 
     def __getitem__(self, key: str) -> Union[None, 'Piece']:
         return self.board[algebraic_notation_to_index(key)]
@@ -176,6 +192,12 @@ class Board:
 
     @classmethod
     def create_standard_board(cls) -> 'Board':
+        """
+        :return: board of the standard start
+
+        >>> len(Board.create_standard_board().current_player.calculate_legal_moves())
+        20
+        """
         board = Board(WHITE, 0, 1)
         for piece_color, first_rank, pawn_rank in zip([WHITE, BLACK], ['1', '8'], ['2', '7']):
             # first rank pieces (rook, knight, bishop, queen, king, bishop, knight, rook)
@@ -308,15 +330,24 @@ class Board:
                                    black_king, black_active_pieces, black_king_side_castle, black_queen_side_castle)
         self.current_player = self.white_player if self.active_color == WHITE else self.black_player
 
-    def create_move(self, source_coordinate: str, destination_coordinate: str) -> dict:
+    def create_move(self, source_square: str, destination_square: str) -> dict:
         """
         Create a move from the source and destination coordinates and execute it
 
-        :param source_coordinate:
-        :param destination_coordinate:
+        :param source_square: the square where the piece is located
+        :param destination_square: the destination square of the move
         :return: a dictionary, {"success": bool, "board": Board}
         """
-        pass
+        for move in self.current_player.calculate_legal_moves():
+            if move.moved_piece.piece_position == source_square and move.destination_coordinate == destination_square:
+                return {
+                    "success": True,
+                    "board": move.execute()
+                }
+        return {
+            "success": False,
+            "board": self.create_standard_board()
+        }
 
 
 ##########
@@ -345,9 +376,7 @@ class Piece:
         return cls(new_board, move.destination_coordinate, move.moved_piece.color)
 
     def update_board(self, new_board: 'Board') -> 'Piece':
-        piece_copy = copy.deepcopy(self)
-        piece_copy.board = new_board
-        return piece_copy
+        return type(self)(new_board, self.piece_position, self.color)
 
     def __repr__(self):
         raise NotImplementedError
@@ -694,8 +723,12 @@ class RookMove(Move):
         board = self.decorated_move.execute()
         if self.moved_piece.color == WHITE:
             board.load_players(
-                self.board.white_player.king_side_castle_availability,
-                self.board.white_player.queen_side_castle_availability,
+                False
+                if self.moved_piece.piece_position == "h1"
+                else self.board.white_player.king_side_castle_availability,
+                False
+                if self.moved_piece.piece_position == "a1"
+                else self.board.white_player.queen_side_castle_availability,
                 self.board.black_player.king_side_castle_availability,
                 self.board.black_player.queen_side_castle_availability
             )
@@ -703,9 +736,13 @@ class RookMove(Move):
             board.load_players(
                 self.board.white_player.king_side_castle_availability,
                 self.board.white_player.queen_side_castle_availability,
-                self.board.black_player.king_side_castle_availability,
-                self.board.black_player.queen_side_castle_availability
-            )  # TODO this
+                False
+                if self.moved_piece.piece_position == "h8"
+                else self.board.black_player.king_side_castle_availability,
+                False
+                if self.moved_piece.piece_position == "a8"
+                else self.board.black_player.queen_side_castle_availability
+            )
         return board
 
     def __str__(self):
