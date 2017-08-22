@@ -1,5 +1,6 @@
+from typing import Dict, List, Type, Union
+
 import numpy as np
-from typing import List, Type, Union
 
 #########
 # CONST #
@@ -330,7 +331,7 @@ class Board:
                                    black_king, black_active_pieces, black_king_side_castle, black_queen_side_castle)
         self.current_player = self.white_player if self.active_color == WHITE else self.black_player
 
-    def create_move(self, source_square: str, destination_square: str) -> dict:
+    def create_move(self, source_square: str, destination_square: str) -> Dict[str, Union['Board', bool]]:
         """
         Create a move from the source and destination coordinates and execute it
 
@@ -360,6 +361,18 @@ class Board:
         R N B Q K B N R
         >>> Board.create_standard_board().create_move("d2", "d1")["success"]
         False
+        >>> Board.create_standard_board().create_move(
+        ...        "e2", "e4"
+        ...    )["board"].create_move(
+        ...        "d7", "d5"
+        ...    )["board"].create_move(
+        ...        "e4", "d5"
+        ...    )["board"].create_move(
+        ...        "c7", "c5"
+        ...    )["board"].create_move(
+        ...        "d5", "c6"
+        ...    )["success"]
+        True
         """
         for move in self.current_player.calculate_legal_moves():
             if move.moved_piece.piece_position == source_square and move.destination_coordinate == destination_square:
@@ -690,6 +703,12 @@ class PawnJumpMove(PawnMove):
             - get_pawn_advance_direction(self.moved_piece.color) * np.array([1, 0])
         )
         board.en_passant_position = en_passant_square
+        board.load_players(
+            self.board.white_player.king_side_castle_availability,
+            self.board.white_player.queen_side_castle_availability,
+            self.board.black_player.king_side_castle_availability,
+            self.board.black_player.queen_side_castle_availability
+        )
         return board
 
 
