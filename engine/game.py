@@ -337,6 +337,29 @@ class Board:
         :param source_square: the square where the piece is located
         :param destination_square: the destination square of the move
         :return: a dictionary, {"success": bool, "board": Board}
+
+        >>> Board.create_standard_board().create_move("d2", "d4")["board"]
+        r n b q k b n r
+        p p p p p p p p
+        - - - - - - - -
+        - - - - - - - -
+        - - - P - - - -
+        - - - - - - - -
+        P P P - P P P P
+        R N B Q K B N R
+        >>> Board.create_standard_board().create_move("d2", "d4")["board"].en_passant_position
+        'd3'
+        >>> Board.create_standard_board().create_move("d2", "d4")["board"].create_move("d7", "d5")["board"]
+        r n b q k b n r
+        p p p - p p p p
+        - - - - - - - -
+        - - - p - - - -
+        - - - P - - - -
+        - - - - - - - -
+        P P P - P P P P
+        R N B Q K B N R
+        >>> Board.create_standard_board().create_move("d2", "d1")["success"]
+        False
         """
         for move in self.current_player.calculate_legal_moves():
             if move.moved_piece.piece_position == source_square and move.destination_coordinate == destination_square:
@@ -598,8 +621,8 @@ class Move:
 class NormalMove(Move):
     def execute(self) -> 'Board':
         board = Board(self.board.current_player.get_opponent().color,
-                      self.board.half_move_clock,
-                      int(self.board.full_move_number) + 1)
+                      self.board.half_move_clock + 1,
+                      self.board.full_move_number + 1)
         for piece in self.board.current_player.get_opponent().active_pieces:
             board[piece.piece_position] = piece.update_board(board)
         for piece in self.board.current_player.active_pieces:
@@ -626,8 +649,8 @@ class CaptureMove(Move):
 
     def execute(self) -> 'Board':
         board = Board(self.board.current_player.get_opponent().color,
-                      self.board.half_move_clock,
-                      int(self.board.full_move_number) + 1)
+                      0,
+                      self.board.full_move_number + 1)
         for piece in self.board.current_player.get_opponent().active_pieces:
             if piece != self.captured_piece:
                 board[piece.piece_position] = piece.update_board(board)
@@ -649,6 +672,11 @@ class CaptureMove(Move):
 
 
 class PawnMove(NormalMove):
+    def execute(self) -> 'Board':
+        board = super().execute()
+        board.half_move_clock = 0
+        return board
+
     def __str__(self):
         return self.destination_coordinate
 
@@ -656,17 +684,12 @@ class PawnMove(NormalMove):
 class PawnJumpMove(PawnMove):
     def execute(self) -> 'Board':
         board = super().execute()
+        board.half_move_clock = 0
         en_passant_square = vector_to_algebraic_notation(
-            algebraic_notation_to_vector(self.moved_piece.piece_position)
+            algebraic_notation_to_vector(self.destination_coordinate)
             - get_pawn_advance_direction(self.moved_piece.color) * np.array([1, 0])
         )
         board.en_passant_position = en_passant_square
-        board.load_players(
-            self.board.white_player.king_side_castle_availability,
-            self.board.white_player.queen_side_castle_availability,
-            self.board.black_player.king_side_castle_availability,
-            self.board.black_player.queen_side_castle_availability
-        )
         return board
 
 
@@ -765,7 +788,7 @@ class CastleMove(Move):
 
     def execute(self) -> 'Board':
         board = Board(self.board.current_player.get_opponent().color,
-                      self.board.half_move_clock,
+                      self.board.half_move_clock + 1,
                       int(self.board.full_move_number) + 1)
         for piece in self.board.current_player.get_opponent().active_pieces:
             board[piece.piece_position] = piece.update_board(board)
