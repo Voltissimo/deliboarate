@@ -562,7 +562,7 @@ class Pawn(Piece):
                         )
                     ]
                     piece_moves.append(
-                        PawnEnPassantMove(self.board, self, candidate_destination_square, en_passant_pawn)
+                        PawnCaptureMove(self.board, self, candidate_destination_square, en_passant_pawn)
                     )
         return piece_moves
 
@@ -584,6 +584,15 @@ class Move:
 
     def execute(self) -> 'Board':
         raise NotImplementedError
+
+    def calculate_move_suffix(self) -> str:
+        suffix = ""
+        board = self.execute()
+        if board.current_player.is_in_checkmate():
+            suffix = "#"
+        elif board.current_player.is_in_check():
+            suffix = "+"
+        return suffix
 
 
 class NormalMove(Move):
@@ -607,7 +616,7 @@ class NormalMove(Move):
         return board
 
     def __str__(self) -> str:
-        return str(self.moved_piece).upper() + self.destination_coordinate  # TODO specify the file when ok for 2 moves?
+        return str(self.moved_piece).upper() + self.destination_coordinate + self.calculate_move_suffix()
 
 
 class CaptureMove(Move):
@@ -636,7 +645,7 @@ class CaptureMove(Move):
         return board
 
     def __str__(self):
-        return str(self.moved_piece).upper() + 'x' + self.destination_coordinate  # TODO same as above
+        return str(self.moved_piece).upper() + 'x' + self.destination_coordinate + self.calculate_move_suffix()
 
 
 class PawnMove(NormalMove):
@@ -663,12 +672,7 @@ class PawnJumpMove(PawnMove):
 
 class PawnCaptureMove(CaptureMove):
     def __str__(self):
-        return self.moved_piece.piece_position[0] + 'x' + self.destination_coordinate
-
-
-class PawnEnPassantMove(PawnCaptureMove):
-    def __str__(self):
-        return self.moved_piece.piece_position[0] + 'x' + self.destination_coordinate + 'e.p.'
+        return self.moved_piece.piece_position[0] + 'x' + self.destination_coordinate + self.calculate_move_suffix()
 
 
 class PawnPromotionMove(Move):
@@ -692,7 +696,7 @@ class PawnPromotionMove(Move):
         return board
 
     def __str__(self):
-        return str(self.decorated_move)
+        return str(self.decorated_move).replace("+", "").replace("#", "") + self.calculate_move_suffix()
 
 
 class KingMove(Move):
