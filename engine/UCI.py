@@ -1,9 +1,10 @@
 """UCI-like interface"""
 import engine.game as chess
 import engine.bot as bot
+from typing import Optional, Tuple
 
 
-def position(fen: str, moves: str) -> str:
+def position(fen: str, moves: str, return_move=False) -> Tuple[str, Optional[str]]:
     """
     Get the FEN notation of the board after the given move is made on the given board in FEN notation.
     The UCI command 'position startpos moves d2d4' translates into position('startpos', 'd2d4')
@@ -12,6 +13,7 @@ def position(fen: str, moves: str) -> str:
 
     :param fen: the FEN notation of the chess piece positions
     :param moves: string of length 4 containing the source square and the destination square (eg. 'e4g3')
+    :param return_move: (optional) return the PGN notation of the move along with the FEN notation of the board
     :return: the FEN notation of the new board; return the same board if the move cannot be made
     """
     if fen == "startpos":
@@ -21,8 +23,10 @@ def position(fen: str, moves: str) -> str:
     source_square, destination_square = moves[:2], moves[2:]
     for move in board.current_player.calculate_legal_moves():
         if move.original_coordinate == source_square and move.destination_coordinate == destination_square:
+            if return_move:
+                return move.execute().to_FEN(), str(move)
             return move.execute().to_FEN()
-    return fen
+    return fen, ''
 
 
 def go(fen: str, depth: int) -> str:

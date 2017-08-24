@@ -660,7 +660,8 @@ class NormalMove(Move):
     def execute(self) -> 'Board':
         board = Board(self.board.current_player.get_opponent().color,
                       self.board.half_move_clock + 1,
-                      self.board.full_move_number + 1)
+                      (self.board.full_move_number + 1)
+                      if self.board.current_player.color == BLACK else self.board.full_move_number)
         for piece in self.board.current_player.get_opponent().active_pieces:
             board[piece.piece_position] = piece.update_board(board)
         for piece in self.board.current_player.active_pieces:
@@ -688,7 +689,8 @@ class CaptureMove(Move):
     def execute(self) -> 'Board':
         board = Board(self.board.current_player.get_opponent().color,
                       0,
-                      self.board.full_move_number + 1)
+                      (self.board.full_move_number + 1)
+                      if self.board.current_player.color == BLACK else self.board.full_move_number)
         for piece in self.board.current_player.get_opponent().active_pieces:
             if piece != self.captured_piece:
                 board[piece.piece_position] = piece.update_board(board)
@@ -833,7 +835,8 @@ class CastleMove(Move):
     def execute(self) -> 'Board':
         board = Board(self.board.current_player.get_opponent().color,
                       self.board.half_move_clock + 1,
-                      int(self.board.full_move_number) + 1)
+                      (self.board.full_move_number + 1)
+                      if self.board.current_player.color == BLACK else self.board.full_move_number)
         for piece in self.board.current_player.get_opponent().active_pieces:
             board[piece.piece_position] = piece.update_board(board)
         for piece in self.board.current_player.active_pieces:
