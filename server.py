@@ -1,6 +1,6 @@
 from collections import defaultdict
-from engine import UCI, game
-from flask import Flask, request, jsonify
+from engine import game, UCI
+from flask import Flask, jsonify, request, send_file
 
 app = Flask(__name__)
 
@@ -8,10 +8,13 @@ app = Flask(__name__)
 @app.route('/position', methods=["GET"])
 def get_position():
     fen = request.args.get('fen')
-    moves = request.args.get('m')
-    new_fen, move_made_pgn = UCI.position(fen, moves, return_move=True)
+    moves = request.args.get('m', default=None)
+    if moves is not None:
+        new_fen, move_made_pgn = UCI.position(fen, moves, return_move=True)
+    else:
+        new_fen, move_made_pgn = fen if fen != "startpos" else game.Board.create_standard_board().to_FEN(), ''
     success = True
-    if new_fen == fen:
+    if new_fen == fen and moves:
         return jsonify({'success': False, 'error': f'Move {moves} cannot be made.'})
     else:
         possible_moves = defaultdict(list)
@@ -34,6 +37,10 @@ def get_best_move():
     depth = request.args.get('d', type=int, default=4)
     return jsonify({'move': UCI.go(fen, depth)})
 
+
+@app.route('/favicon.ico', methods=["GET"])
+def get_favicon():
+    return send_file('favicon.ico')
 
 if __name__ == '__main__':
     app.run()
