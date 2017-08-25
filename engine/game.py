@@ -276,8 +276,8 @@ class Board:
                     file_count += 1
         board.load_players(
             'K' in castling_availability_string,
-            'k' in castling_availability_string,
             'Q' in castling_availability_string,
+            'k' in castling_availability_string,
             'q' in castling_availability_string
         )
         return board
@@ -393,16 +393,32 @@ class Board:
         ...        "d5", "c6"
         ...    )["success"]
         True
+        >>> Board.from_FEN(
+        ...        "r3k2r/pppbqpbp/2np1np1/4p3/4P3/2NP1NP1/PPPBQPBP/R4RK1 b kq - 3 9"
+        ...    ).create_move("e8", "c8")["board"]  # bug: queen-side castling displaces the king rook instead
+        - - k r - - - r
+        p p p b q p b p
+        - - n p - n p -
+        - - - - p - - -
+        - - - - P - - -
+        - - N P - N P -
+        P P P B Q P B P
+        R - - - - R K -
+        >>> Board.from_FEN("r3k2r/pppbqpbp/2np1np1/4p3/4P3/2NP1NP1/PPPBQPBP/R4RK1 b kq - 3 9").create_move(
+        ...        "e8", "g8")["success"]  # bug: king-side castling unavailable when it should be
+        True
         """
         for move in self.current_player.calculate_legal_moves():
             if move.moved_piece.piece_position == source_square and move.destination_coordinate == destination_square:
                 return {
                     "success": True,
-                    "board": move.execute()
+                    "board": move.execute(),
+                    "move": str(move)
                 }
         return {
             "success": False,
-            "board": self.create_standard_board()
+            "board": self,
+            "move": ""
         }
 
 
@@ -874,7 +890,7 @@ class KingSideCastleMove(CastleMove):
 class QueenSideCastleMove(CastleMove):
     def __init__(self, board: 'Board', king: 'King'):
         king_destination_coordinate = "c1" if king.color == WHITE else "c8"
-        rook_coordinate = "h1" if king.color == WHITE else "h8"
+        rook_coordinate = "a1" if king.color == WHITE else "a8"
         rook: 'Rook' = board[rook_coordinate]
         assert type(rook) == Rook
         rook_destination_coordinate = "d1" if king.color == WHITE else "d8"
@@ -882,7 +898,3 @@ class QueenSideCastleMove(CastleMove):
 
     def __str__(self):
         return "O-O-O"
-
-
-if __name__ == '__main__':
-    pass
